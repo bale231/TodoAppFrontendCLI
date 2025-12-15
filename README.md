@@ -86,7 +86,38 @@ You've successfully run and modified your React Native App. :partying_face:
 
 If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
 
-# Learn More
+# TodoAppFrontendCLI
+
+React Native mobile application for TodoApp, aligned with the web app at [todowebapp-frontend-reactts](https://github.com/bale231/todowebapp-frontend-reactts.git).
+
+## Features
+
+- 🔐 User authentication (Login/Register)
+- ✅ Todo lists management
+- 📂 Categories organization
+- 👥 Friends & sharing
+- 🔔 Push notifications
+- 🎨 Dark/Light theme
+- 🔄 Real-time sync with backend API
+
+## Architecture
+
+```
+src/
+├── api/           # API services (auth, todos, friends, sharing, notifications)
+├── components/    # Reusable components
+├── context/       # React Context (Theme, Notification)
+├── hooks/         # Custom hooks
+├── pages/         # App screens
+├── types/         # TypeScript type definitions
+└── utils/         # Utility functions
+```
+
+## API Backend
+
+Backend API: `https://bale231.pythonanywhere.com/api`
+
+## Learn More
 
 To learn more about React Native, take a look at the following resources:
 
@@ -95,4 +126,3 @@ To learn more about React Native, take a look at the following resources:
 - [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
 - [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
 - [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
-# TodoAppFrontendCLI

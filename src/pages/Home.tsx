@@ -6,6 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
 import {fetchAllLists, createList} from '../api/todos';
 import {getCurrentUserJWT, logout} from '../api/auth';
@@ -26,8 +29,13 @@ export default function Home({navigation}: HomeProps) {
   const [lists, setLists] = useState<TodoList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [newListName, setNewListName] = useState('');
+  const [selectedColor, setSelectedColor] = useState('#4a90e2');
   const {theme} = useTheme();
   const isDark = theme === 'dark';
+
+  const colors = ['#4a90e2', '#f44', '#4caf50', '#ff9800', '#9c27b0', '#00bcd4'];
 
   useEffect(() => {
     loadData();
@@ -50,6 +58,23 @@ export default function Home({navigation}: HomeProps) {
   const handleLogout = async () => {
     await logout();
     navigation.replace('Login');
+  };
+
+  const handleCreateList = async () => {
+    if (!newListName.trim()) {
+      Alert.alert('Errore', 'Inserisci un nome per la lista');
+      return;
+    }
+
+    try {
+      await createList(newListName, selectedColor);
+      setShowModal(false);
+      setNewListName('');
+      setSelectedColor('#4a90e2');
+      loadData();
+    } catch (error) {
+      Alert.alert('Errore', 'Impossibile creare la lista');
+    }
   };
 
   const renderList = ({item}: {item: TodoList}) => (
@@ -79,9 +104,13 @@ export default function Home({navigation}: HomeProps) {
         <Text style={[styles.welcomeText, isDark && styles.welcomeTextDark]}>
           Ciao, {user?.username || 'User'}!
         </Text>
-        <TouchableOpacity onPress={handleLogout}>
-          <Text style={styles.logoutButton}>Logout</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Profile')}
+            style={styles.profileButton}>
+            <Text style={styles.profileButtonText}>👤</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -98,11 +127,66 @@ export default function Home({navigation}: HomeProps) {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => {
-          /* TODO: Aggiungi modale per creare lista */
-        }}>
+        onPress={() => setShowModal(true)}>
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
+
+      {/* Modal Crea Lista */}
+      <Modal
+        visible={showModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
+              Nuova Lista
+            </Text>
+
+            <TextInput
+              style={[styles.modalInput, isDark && styles.modalInputDark]}
+              value={newListName}
+              onChangeText={setNewListName}
+              placeholder="Nome lista..."
+              placeholderTextColor={isDark ? '#999' : '#666'}
+              autoFocus
+            />
+
+            <Text style={[styles.colorLabel, isDark && styles.colorLabelDark]}>
+              Scegli un colore:
+            </Text>
+            <View style={styles.colorPicker}>
+              {colors.map(color => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorOption,
+                    {backgroundColor: color},
+                    selectedColor === color && styles.colorSelected,
+                  ]}
+                  onPress={() => setSelectedColor(color)}
+                />
+              ))}
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowModal(false);
+                  setNewListName('');
+                }}>
+                <Text style={styles.cancelButtonText}>Annulla</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.createButton]}
+                onPress={handleCreateList}>
+                <Text style={styles.createButtonText}>Crea</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -130,9 +214,20 @@ const styles = StyleSheet.create({
   welcomeTextDark: {
     color: '#fff',
   },
-  logoutButton: {
-    color: '#f44',
-    fontSize: 16,
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  profileButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#4a90e2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileButtonText: {
+    fontSize: 20,
   },
   listContainer: {
     padding: 20,
@@ -193,6 +288,110 @@ const styles = StyleSheet.create({
   fabText: {
     color: '#fff',
     fontSize: 32,
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalContentDark: {
+    backgroundColor: '#2a2a2a',
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalTitleDark: {
+    color: '#fff',
+  },
+  modalInput: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    color: '#333',
+  },
+  modalInputDark: {
+    backgroundColor: '#1a1a1a',
+    borderColor: '#444',
+    color: '#fff',
+  },
+  colorLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  colorLabelDark: {
+    color: '#fff',
+  },
+  colorPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 24,
+  },
+  colorOption: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 3,
+    borderColor: 'transparent',
+  },
+  colorSelected: {
+    borderColor: '#fff',
+    borderWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#666',
+  },
+  cancelButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  createButton: {
+    backgroundColor: '#4a90e2',
+  },
+  createButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
   },
 });

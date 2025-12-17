@@ -19,6 +19,7 @@ import Register from './src/pages/Register';
 import Home from './src/pages/Home';
 import ToDoListPage from './src/pages/ToDoListPage';
 import ForgotPassword from './src/pages/ForgotPassword';
+import Profile from './src/pages/Profile';
 
 const Stack = createNativeStackNavigator();
 
@@ -41,6 +42,7 @@ function AppNavigator() {
           <Stack.Screen name="Home" component={Home} />
           <Stack.Screen name="ToDoListPage" component={ToDoListPage} />
           <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
+          <Stack.Screen name="Profile" component={Profile} />
         </Stack.Navigator>
       </NavigationContainer>
     </>

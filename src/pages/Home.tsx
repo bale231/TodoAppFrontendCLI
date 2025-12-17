@@ -106,9 +106,24 @@ export default function Home({navigation}: HomeProps) {
         </Text>
         <View style={styles.headerButtons}>
           <TouchableOpacity
+            onPress={() => navigation.navigate('UsersPage')}
+            style={styles.iconButton}>
+            <Text style={styles.iconButtonText}>👥</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('FriendsPage')}
+            style={styles.iconButton}>
+            <Text style={styles.iconButtonText}>🤝</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('FriendRequestsPage')}
+            style={styles.iconButton}>
+            <Text style={styles.iconButtonText}>📩</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() => navigation.navigate('Profile')}
-            style={styles.profileButton}>
-            <Text style={styles.profileButtonText}>👤</Text>
+            style={styles.iconButton}>
+            <Text style={styles.iconButtonText}>👤</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -216,9 +231,9 @@ const styles = StyleSheet.create({
   },
   headerButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
-  profileButton: {
+  iconButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -226,8 +241,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  profileButtonText: {
-    fontSize: 20,
+  iconButtonText: {
+    fontSize: 18,
   },
   listContainer: {
     padding: 20,

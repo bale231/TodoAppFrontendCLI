@@ -20,6 +20,9 @@ import Home from './src/pages/Home';
 import ToDoListPage from './src/pages/ToDoListPage';
 import ForgotPassword from './src/pages/ForgotPassword';
 import Profile from './src/pages/Profile';
+import UsersPage from './src/pages/UsersPage';
+import FriendsPage from './src/pages/FriendsPage';
+import FriendRequestsPage from './src/pages/FriendRequestsPage';
 
 const Stack = createNativeStackNavigator();
 
@@ -43,6 +46,9 @@ function AppNavigator() {
           <Stack.Screen name="ToDoListPage" component={ToDoListPage} />
           <Stack.Screen name="ForgotPassword" component={ForgotPassword} />
           <Stack.Screen name="Profile" component={Profile} />
+          <Stack.Screen name="UsersPage" component={UsersPage} />
+          <Stack.Screen name="FriendsPage" component={FriendsPage} />
+          <Stack.Screen name="FriendRequestsPage" component={FriendRequestsPage} />
         </Stack.Navigator>
       </NavigationContainer>
     </>

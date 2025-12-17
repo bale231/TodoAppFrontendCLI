@@ -82,10 +82,19 @@ export const NotificationProvider = ({
 
   const fetchNotifications = async () => {
     try {
+      // Controlla se c'è un token prima di fare la richiesta
+      const {storage} = await import('../utils/storage');
+      const token = await storage.getItem('accessToken');
+      if (!token) {
+        // Nessun token, l'utente non è loggato
+        return;
+      }
+
       const data = await fetchNotificationsAPI();
       setNotifications(data);
     } catch (error) {
-      console.error('Errore nel caricamento notifiche:', error);
+      // Ignora errori se l'utente non è loggato
+      console.log('Notifiche non disponibili:', error);
     }
   };
 

@@ -89,6 +89,10 @@ export default function Home({navigation}: {navigation: any}) {
   const [showCatForm, setShowCatForm] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
+  // Modal animations
+  const modalScale = useRef(new Animated.Value(0.9)).current;
+  const modalOpacity = useRef(new Animated.Value(0)).current;
+
   // Form states
   const [newListName, setNewListName] = useState('');
   const [newListColor, setNewListColor] = useState('blue');
@@ -148,6 +152,38 @@ export default function Home({navigation}: {navigation: any}) {
       ]).start();
     }
   }, [menuOpen]);
+
+  // Animate modals (GSAP-style: scale from 0.9 to 1 + fade)
+  useEffect(() => {
+    if (showForm || showCatForm || showCategoryPicker) {
+      Animated.parallel([
+        Animated.spring(modalScale, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(modalScale, {
+          toValue: 0.9,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showForm, showCatForm, showCategoryPicker]);
 
   const fetchLists = async () => {
     try {
@@ -582,9 +618,16 @@ export default function Home({navigation}: {navigation: any}) {
       </View>
 
       {/* Create/Edit List Modal */}
-      <Modal visible={showForm} transparent animationType="fade">
+      <Modal visible={showForm} transparent animationType="none">
         <Pressable style={styles.modalOverlay} onPress={() => setShowForm(false)}>
-          <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
+          <Animated.View
+            style={[
+              {
+                opacity: modalOpacity,
+                transform: [{scale: modalScale}],
+              },
+            ]}>
+            <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
             <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
               {editListId !== null ? 'Modifica Lista' : 'Nuova Lista'}
             </Text>
@@ -636,13 +679,21 @@ export default function Home({navigation}: {navigation: any}) {
               </TouchableOpacity>
             </View>
           </Pressable>
+          </Animated.View>
         </Pressable>
       </Modal>
 
       {/* Create/Edit Category Modal */}
-      <Modal visible={showCatForm} transparent animationType="fade">
+      <Modal visible={showCatForm} transparent animationType="none">
         <Pressable style={styles.modalOverlay} onPress={() => setShowCatForm(false)}>
-          <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
+          <Animated.View
+            style={[
+              {
+                opacity: modalOpacity,
+                transform: [{scale: modalScale}],
+              },
+            ]}>
+            <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
             <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
               {editCatId ? 'Modifica Categoria' : 'Nuova Categoria'}
             </Text>
@@ -677,13 +728,21 @@ export default function Home({navigation}: {navigation: any}) {
               </TouchableOpacity>
             </View>
           </Pressable>
+          </Animated.View>
         </Pressable>
       </Modal>
 
       {/* Category Picker Modal */}
-      <Modal visible={showCategoryPicker} transparent animationType="slide">
+      <Modal visible={showCategoryPicker} transparent animationType="none">
         <Pressable style={styles.modalOverlay} onPress={() => setShowCategoryPicker(false)}>
-          <View style={[styles.pickerModal, isDark && styles.pickerModalDark]}>
+          <Animated.View
+            style={[
+              {
+                opacity: modalOpacity,
+                transform: [{scale: modalScale}],
+              },
+            ]}>
+            <View style={[styles.pickerModal, isDark && styles.pickerModalDark]}>
             <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
               Seleziona Categoria
             </Text>
@@ -718,6 +777,7 @@ export default function Home({navigation}: {navigation: any}) {
               ))}
             </ScrollView>
           </View>
+          </Animated.View>
         </Pressable>
       </Modal>
     </View>

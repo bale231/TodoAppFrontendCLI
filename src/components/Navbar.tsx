@@ -51,7 +51,11 @@ export default function Navbar({navigation}: NavbarProps) {
       {/* Logo */}
       <TouchableOpacity onPress={() => navigation.navigate('Home')}>
         <Image
-          source={require('../assets/logo-todoapp.png')}
+          source={
+            isDark
+              ? require('../assets/logo-themedark.png')
+              : require('../assets/logo-themelight.png')
+          }
           style={styles.logo}
           resizeMode="contain"
         />

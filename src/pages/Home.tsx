@@ -12,6 +12,7 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
+import {BlurView} from '@react-native-community/blur';
 import {useTheme} from '../context/ThemeContext';
 import Navbar from '../components/Navbar';
 import {
@@ -619,15 +620,19 @@ export default function Home({navigation}: {navigation: any}) {
 
       {/* Create/Edit List Modal */}
       <Modal visible={showForm} transparent animationType="none">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowForm(false)}>
-          <Animated.View
-            style={[
-              {
-                opacity: modalOpacity,
-                transform: [{scale: modalScale}],
-              },
-            ]}>
-            <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
+        <BlurView
+          style={styles.modalOverlay}
+          blurType={isDark ? 'dark' : 'light'}
+          blurAmount={20}>
+          <Pressable style={styles.modalOverlayPressable} onPress={() => setShowForm(false)}>
+            <Animated.View
+              style={[
+                {
+                  opacity: modalOpacity,
+                  transform: [{scale: modalScale}],
+                },
+              ]}>
+              <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
             <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
               {editListId !== null ? 'Modifica Lista' : 'Nuova Lista'}
             </Text>
@@ -681,19 +686,24 @@ export default function Home({navigation}: {navigation: any}) {
           </Pressable>
           </Animated.View>
         </Pressable>
+        </BlurView>
       </Modal>
 
       {/* Create/Edit Category Modal */}
       <Modal visible={showCatForm} transparent animationType="none">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowCatForm(false)}>
-          <Animated.View
-            style={[
-              {
-                opacity: modalOpacity,
-                transform: [{scale: modalScale}],
-              },
-            ]}>
-            <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
+        <BlurView
+          style={styles.modalOverlay}
+          blurType={isDark ? 'dark' : 'light'}
+          blurAmount={20}>
+          <Pressable style={styles.modalOverlayPressable} onPress={() => setShowCatForm(false)}>
+            <Animated.View
+              style={[
+                {
+                  opacity: modalOpacity,
+                  transform: [{scale: modalScale}],
+                },
+              ]}>
+              <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
             <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
               {editCatId ? 'Modifica Categoria' : 'Nuova Categoria'}
             </Text>
@@ -730,19 +740,24 @@ export default function Home({navigation}: {navigation: any}) {
           </Pressable>
           </Animated.View>
         </Pressable>
+        </BlurView>
       </Modal>
 
       {/* Category Picker Modal */}
       <Modal visible={showCategoryPicker} transparent animationType="none">
-        <Pressable style={styles.modalOverlay} onPress={() => setShowCategoryPicker(false)}>
-          <Animated.View
-            style={[
-              {
-                opacity: modalOpacity,
-                transform: [{scale: modalScale}],
-              },
-            ]}>
-            <View style={[styles.pickerModal, isDark && styles.pickerModalDark]}>
+        <BlurView
+          style={styles.modalOverlay}
+          blurType={isDark ? 'dark' : 'light'}
+          blurAmount={20}>
+          <Pressable style={styles.modalOverlayPressable} onPress={() => setShowCategoryPicker(false)}>
+            <Animated.View
+              style={[
+                {
+                  opacity: modalOpacity,
+                  transform: [{scale: modalScale}],
+                },
+              ]}>
+              <View style={[styles.pickerModal, isDark && styles.pickerModalDark]}>
             <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
               Seleziona Categoria
             </Text>
@@ -779,6 +794,7 @@ export default function Home({navigation}: {navigation: any}) {
           </View>
           </Animated.View>
         </Pressable>
+        </BlurView>
       </Modal>
     </View>
   );
@@ -1045,7 +1061,9 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  modalOverlayPressable: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },

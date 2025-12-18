@@ -8,6 +8,7 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
+import {BlurView} from '@react-native-community/blur';
 import {useTheme} from '../context/ThemeContext';
 import {getCurrentUserJWT, logout} from '../api/auth';
 import {useNotifications} from '../context/NotificationContext';
@@ -47,22 +48,28 @@ export default function Navbar({navigation}: NavbarProps) {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
-    <View style={[styles.navbar, isDark && styles.navbarDark]}>
-      {/* Logo */}
-      <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-        <Image
-          source={
-            isDark
-              ? require('../assets/logo-themedark.png')
-              : require('../assets/logo-themelight.png')
-          }
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </TouchableOpacity>
+    <>
+    <BlurView
+      style={styles.navbar}
+      blurType={isDark ? 'dark' : 'light'}
+      blurAmount={10}
+      reducedTransparencyFallbackColor={isDark ? '#1a1a1a' : '#ffffff'}>
+      <View style={styles.navbarContent}>
+        {/* Logo */}
+        <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+          <Image
+            source={
+              isDark
+                ? require('../assets/logo-themedark.png')
+                : require('../assets/logo-themelight.png')
+            }
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
 
-      {/* Right side controls */}
-      <View style={styles.rightControls}>
+        {/* Right side controls */}
+        <View style={styles.rightControls}>
         {/* Theme toggle */}
         <TouchableOpacity onPress={toggleTheme} style={styles.iconButton}>
           <Text style={styles.icon}>{isDark ? '☀️' : '🌙'}</Text>
@@ -98,6 +105,8 @@ export default function Navbar({navigation}: NavbarProps) {
           )}
         </TouchableOpacity>
       </View>
+      </View>
+    </BlurView>
 
       {/* Profile Dropdown Modal */}
       <Modal
@@ -164,25 +173,23 @@ export default function Navbar({navigation}: NavbarProps) {
           </View>
         </Pressable>
       </Modal>
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   navbar: {
     height: 80,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(200, 200, 200, 0.5)',
+  },
+  navbarContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(200, 200, 200, 0.5)',
-  },
-  navbarDark: {
-    backgroundColor: 'rgba(17, 24, 39, 0.7)',
-    borderBottomColor: 'rgba(255, 255, 255, 0.2)',
   },
   logo: {
     width: 120,

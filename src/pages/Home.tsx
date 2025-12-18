@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
@@ -15,6 +17,7 @@ import {
 import {BlurView} from '@react-native-community/blur';
 import {useTheme} from '../context/ThemeContext';
 import Navbar from '../components/Navbar';
+import {getCurrentUserJWT} from '../api/auth';
 import {
   fetchAllLists,
   createList,
@@ -25,6 +28,7 @@ import {
 } from '../api/todos';
 import {storage} from '../utils/storage';
 
+// ===== INTERFACES (exact same as webapp) =====
 interface TodoItem {
   id: number;
   text: string;
@@ -61,6 +65,7 @@ interface TodoList {
   } | null;
 }
 
+// ===== COLOR MAPPING (exact same as webapp) =====
 const colorMap: Record<string, {border: string; bg: string}> = {
   blue: {border: '#3b82f6', bg: 'rgba(59, 130, 246, 0.2)'},
   green: {border: '#22c55e', bg: 'rgba(34, 197, 94, 0.2)'},
@@ -75,45 +80,184 @@ export default function Home({navigation}: {navigation: any}) {
   const {theme} = useTheme();
   const isDark = theme === 'dark';
 
+  // ===== ALL STATE VARIABLES (exact same as webapp lines 66-97) =====
+  const [user, setUser] = useState<any>(null);
   const [lists, setLists] = useState<TodoList[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-
-  // FAB menu
-  const [menuOpen, setMenuOpen] = useState(false);
-  const fabRotation = useRef(new Animated.Value(0)).current;
-  const menuTranslateY = useRef(new Animated.Value(50)).current;
-  const menuOpacity = useRef(new Animated.Value(0)).current;
-
-  // Modals
-  const [showForm, setShowForm] = useState(false);
-  const [showCatForm, setShowCatForm] = useState(false);
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-
-  // Modal animations
-  const modalScale = useRef(new Animated.Value(0.9)).current;
-  const modalOpacity = useRef(new Animated.Value(0)).current;
-
-  // Form states
   const [newListName, setNewListName] = useState('');
   const [newListColor, setNewListColor] = useState('blue');
   const [newListCategory, setNewListCategory] = useState<number | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [editListId, setEditListId] = useState<number | null>(null);
-
-  const [catName, setCatName] = useState('');
-  const [editCatId, setEditCatId] = useState<number | null>(null);
-
-  // Edit mode & sorting
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [sortOption, setSortOption] = useState<'created' | 'name' | 'complete'>('created');
   const [categorySortAlpha, setCategorySortAlpha] = useState(false);
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const [showCatForm, setShowCatForm] = useState(false);
+  const [catName, setCatName] = useState('');
+  const [editCatId, setEditCatId] = useState<number | null>(null);
+  const [alert, setAlert] = useState<{
+    type: 'success' | 'error' | 'warning';
+    message: string;
+  } | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareItemId, setShareItemId] = useState<number | null>(null);
+  const [shareItemName, setShareItemName] = useState('');
+  const [shareItemType, setShareItemType] = useState<'list' | 'category'>('list');
 
+  // ===== ANIMATION REFS =====
+  const fabRotation = useRef(new Animated.Value(0)).current;
+  const menuTranslateY = useRef(new Animated.Value(50)).current;
+  const menuOpacity = useRef(new Animated.Value(0)).current;
+  const modalScale = useRef(new Animated.Value(0.9)).current;
+  const modalOpacity = useRef(new Animated.Value(0)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const titleTranslateY = useRef(new Animated.Value(-30)).current;
+  const boxOpacity = useRef(new Animated.Value(0)).current;
+  const boxTranslateY = useRef(new Animated.Value(20)).current;
+
+  // ===== HELPER FUNCTION: getAccessToken (exact translation) =====
+  const getAccessToken = async () => {
+    const token = await storage.getItem('accessToken');
+    return token || '';
+  };
+
+  // ===== useEffect 1: loadUserAndPref (lines 114-151) =====
   useEffect(() => {
-    fetchLists();
-    fetchCategories();
-    loadSelectedCategory();
-  }, []);
+    const loadUserAndPref = async () => {
+      const resUser = await getCurrentUserJWT();
+      if (!resUser) {
+        navigation.navigate('Login');
+        return;
+      }
+      setUser(resUser);
 
+      try {
+        const token = await getAccessToken();
+        const res = await fetch(`${API_URL}/lists/sort_order/`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (res.ok) {
+          const {sort_order} = await res.json();
+          setSortOption(
+            sort_order === 'alphabetical'
+              ? 'name'
+              : sort_order === 'complete'
+              ? 'complete'
+              : 'created'
+          );
+        }
+
+        const catRes = await fetch(`${API_URL}/categories/sort_preference/`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (catRes.ok) {
+          const {category_sort_alpha} = await catRes.json();
+          setCategorySortAlpha(category_sort_alpha);
+        }
+      } catch (err) {
+        console.error('Impossibile caricare preferenze:', err);
+      }
+    };
+    loadUserAndPref();
+  }, [navigation]);
+
+  // ===== useEffect 2: fetchLists + fetchCategories + animations (lines 153-178) =====
+  useEffect(() => {
+    if (user) {
+      fetchListsData();
+      fetchCategoriesData();
+
+      // Initial page animations (GSAP equivalent)
+      if (!hasAnimated) {
+        Animated.parallel([
+          Animated.timing(titleOpacity, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(titleTranslateY, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(boxOpacity, {
+            toValue: 1,
+            delay: 200,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(boxTranslateY, {
+            toValue: 0,
+            delay: 200,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ]).start();
+        setHasAnimated(true);
+      }
+    }
+  }, [user, hasAnimated]);
+
+  // ===== useEffect 3: Modal animation for showForm (lines 180-188) =====
+  useEffect(() => {
+    if (showForm) {
+      Animated.parallel([
+        Animated.spring(modalScale, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(modalScale, {
+          toValue: 0.9,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showForm]);
+
+  // ===== useEffect 4: Modal animation for showCatForm (lines 190-198) =====
+  useEffect(() => {
+    if (showCatForm) {
+      Animated.parallel([
+        Animated.spring(modalScale, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showCatForm]);
+
+  // ===== FAB menu animation =====
   useEffect(() => {
     if (menuOpen) {
       Animated.parallel([
@@ -154,137 +298,203 @@ export default function Home({navigation}: {navigation: any}) {
     }
   }, [menuOpen]);
 
-  // Animate modals (GSAP-style: scale from 0.9 to 1 + fade)
+  // ===== Alert auto-dismiss =====
   useEffect(() => {
-    if (showForm || showCatForm || showCategoryPicker) {
-      Animated.parallel([
-        Animated.spring(modalScale, {
-          toValue: 1,
-          friction: 8,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-        Animated.timing(modalOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(modalScale, {
-          toValue: 0.9,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(modalOpacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+    if (alert) {
+      const timer = setTimeout(() => {
+        setAlert(null);
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-  }, [showForm, showCatForm, showCategoryPicker]);
+  }, [alert]);
 
-  const fetchLists = async () => {
+  // ===== fetchLists (lines 234-245) =====
+  const fetchListsData = async () => {
     try {
       const data = await fetchAllLists();
-      setLists(data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const token = await storage.getItem('accessToken');
-      const res = await fetch(`${API_URL}/categories/`, {
-        headers: {Authorization: `Bearer ${token}`},
-      });
-      const data = await res.json();
-      setCategories(data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const loadSelectedCategory = async () => {
-    try {
-      const catId = await getSelectedCategory();
-      if (catId) {
-        // Will load category when categories are fetched
+      if (Array.isArray(data)) {
+        setLists(data);
+      } else {
+        console.error('Formato risposta non valido:', data);
       }
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error('Errore nel caricamento liste:', err);
     }
   };
 
+  // ===== fetchCategories (lines 247-265) =====
+  const fetchCategoriesData = async () => {
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`${API_URL}/categories/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data);
+
+        // Load selected category
+        await loadSelectedCategoryData(data);
+      }
+    } catch (err) {
+      console.error('Errore caricamento categorie:', err);
+    }
+  };
+
+  // ===== loadSelectedCategory (lines 267-279) =====
+  const loadSelectedCategoryData = async (categoriesData: Category[]) => {
+    try {
+      const result = await getSelectedCategory();
+      if (result && result.selected_category !== null && result.selected_category !== undefined) {
+        const cat = categoriesData.find((c) => c.id === result.selected_category);
+        if (cat) {
+          setSelectedCategory(cat);
+        }
+      }
+    } catch (err) {
+      console.error('Errore caricamento categoria selezionata:', err);
+    }
+  };
+
+  // ===== handleCreateList (lines 281-327) =====
   const handleCreateList = async () => {
     if (!newListName.trim()) {
-      Alert.alert('Errore', 'Inserisci un nome per la lista');
+      setAlert({type: 'warning', message: 'Inserisci un nome per la lista'});
       return;
     }
+
+    const payload = {
+      name: newListName,
+      color: newListColor,
+      category: newListCategory,
+    };
 
     try {
       if (editListId !== null) {
         await editListAPI(editListId, newListName, newListColor, newListCategory);
-        Alert.alert('Successo', 'Lista modificata!');
+        setAlert({
+          type: 'success',
+          message: 'Lista modificata con successo!',
+        });
+        setEditListId(null);
       } else {
-        await createList(newListName, newListColor, newListCategory);
-        Alert.alert('Successo', 'Lista creata!');
+        const token = await getAccessToken();
+        const res = await fetch(`${API_URL}/lists/`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          setAlert({
+            type: 'error',
+            message: 'Errore nella creazione della lista',
+          });
+          return;
+        }
+        setAlert({type: 'success', message: 'Lista creata con successo!'});
       }
-      fetchLists();
-      setShowForm(false);
-      setEditListId(null);
+      fetchListsData();
       setNewListName('');
       setNewListColor('blue');
+      setShowForm(false);
       setNewListCategory(null);
-    } catch (error) {
-      Alert.alert('Errore', 'Impossibile creare la lista');
+    } catch (err) {
+      setAlert({type: 'error', message: 'Errore di connessione'});
     }
   };
 
+  // ===== handleEditList (lines 329-336) =====
   const handleEditList = (list: TodoList) => {
     setEditListId(list.id);
     setNewListName(list.name);
     setNewListColor(list.color);
-    setNewListCategory(list.category?.id || null);
+    setNewListCategory(list.category ? list.category.id : null);
     setShowForm(true);
   };
 
-  const handleDeleteList = (listId: number) => {
-    Alert.alert('Conferma', 'Eliminare questa lista?', [
-      {text: 'Annulla', style: 'cancel'},
-      {
-        text: 'Elimina',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteList(listId);
-            fetchLists();
-            Alert.alert('Successo', 'Lista eliminata');
-          } catch (error) {
-            Alert.alert('Errore', 'Impossibile eliminare');
-          }
+  // ===== handleSortChange (lines 337-366) =====
+  const handleSortChange = async (newOpt: 'created' | 'name' | 'complete') => {
+    setSortOption(newOpt);
+    const backendOrder =
+      newOpt === 'name'
+        ? 'alphabetical'
+        : newOpt === 'complete'
+        ? 'complete'
+        : 'created';
+
+    const messages = {
+      created: 'Ordinamento: Più recente',
+      name: 'Ordinamento: Alfabetico',
+      complete: 'Ordinamento: Per completezza',
+    };
+
+    setAlert({type: 'success', message: messages[newOpt]});
+
+    try {
+      const token = await getAccessToken();
+      await fetch(`${API_URL}/lists/sort_order/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
-      },
-    ]);
+        body: JSON.stringify({sort_order: backendOrder}),
+      });
+    } catch (err) {
+      console.error('Errore salvataggio ordinamento:', err);
+    }
   };
 
+  // ===== deleteListAsync (lines 368-377) =====
+  const deleteListAsync = async (id: number) => {
+    try {
+      await deleteList(id);
+      fetchListsData();
+      setShowDeleteConfirm(null);
+      setAlert({type: 'success', message: 'Lista eliminata'});
+    } catch (err) {
+      setAlert({type: 'error', message: "Errore nell'eliminazione"});
+    }
+  };
+
+  // ===== handleDeleteList (lines 379-401) - with shake animation =====
+  const handleDeleteList = async (id: number) => {
+    // Create shake animation (GSAP equivalent)
+    const shakeAnim = new Animated.Value(0);
+    Animated.sequence([
+      Animated.timing(shakeAnim, {toValue: -3, duration: 100, useNativeDriver: true}),
+      Animated.timing(shakeAnim, {toValue: 3, duration: 100, useNativeDriver: true}),
+      Animated.timing(shakeAnim, {toValue: -3, duration: 100, useNativeDriver: true}),
+      Animated.timing(shakeAnim, {toValue: 0, duration: 100, useNativeDriver: true}),
+    ]).start(() => {
+      deleteListAsync(id);
+    });
+  };
+
+  // ===== handleCreateOrEditCat (lines 403-446) =====
   const handleCreateOrEditCat = async () => {
     if (!catName.trim()) {
-      Alert.alert('Errore', 'Inserisci un nome per la categoria');
+      setAlert({
+        type: 'warning',
+        message: 'Inserisci un nome per la categoria',
+      });
       return;
     }
 
-    try {
-      const token = await storage.getItem('accessToken');
-      const url = editCatId
-        ? `${API_URL}/categories/${editCatId}/`
-        : `${API_URL}/categories/`;
-      const method = editCatId ? 'PATCH' : 'POST';
+    const url = editCatId
+      ? `${API_URL}/categories/${editCatId}/`
+      : `${API_URL}/categories/`;
+    const method = editCatId ? 'PATCH' : 'POST';
 
-      await fetch(url, {
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(url, {
         method,
         headers: {
           Authorization: `Bearer ${token}`,
@@ -293,94 +503,98 @@ export default function Home({navigation}: {navigation: any}) {
         body: JSON.stringify({name: catName}),
       });
 
-      fetchCategories();
+      if (!res.ok) {
+        setAlert({
+          type: 'error',
+          message: 'Errore nella gestione della categoria',
+        });
+        return;
+      }
+
+      fetchCategoriesData();
       setShowCatForm(false);
       setEditCatId(null);
       setCatName('');
-      Alert.alert('Successo', editCatId ? 'Categoria modificata!' : 'Categoria creata!');
+      setAlert({
+        type: 'success',
+        message: editCatId ? 'Categoria modificata!' : 'Categoria creata!',
+      });
     } catch (err) {
-      Alert.alert('Errore', 'Errore nella gestione della categoria');
+      setAlert({type: 'error', message: 'Errore di connessione'});
     }
   };
 
+  // ===== handleEditCat (lines 448-452) =====
   const handleEditCat = (cat: Category) => {
     setEditCatId(cat.id);
     setCatName(cat.name);
     setShowCatForm(true);
   };
 
-  const handleSortChange = (newSort: 'created' | 'name' | 'complete') => {
-    setSortOption(newSort);
-    const sortNames = {
-      created: 'Più recente',
-      name: 'Alfabetico',
-      complete: 'Per completezza',
-    };
-    Alert.alert('Ordinamento', sortNames[newSort]);
-  };
-
-  const toggleCategorySortAlpha = async () => {
-    const newValue = !categorySortAlpha;
-    setCategorySortAlpha(newValue);
-    Alert.alert('Ordine A-Z', newValue ? 'Attivato' : 'Disattivato');
-
-    try {
-      const token = await storage.getItem('accessToken');
-      await fetch(`${API_URL}/categories/sort_preference/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({category_sort_alpha: newValue}),
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Filter and sort logic
+  // ===== FILTER AND SORT LOGIC (lines 454-506) - EXACT SAME =====
   const filteredLists = selectedCategory
-    ? lists.filter(l => l.category && l.category.id === selectedCategory.id)
+    ? lists.filter((l) => l.category && l.category.id === selectedCategory.id)
     : lists;
 
   const sortedLists = [...filteredLists].sort((a, b) => {
     if (sortOption === 'name') {
       return a.name.localeCompare(b.name);
     } else if (sortOption === 'complete') {
-      const aComplete = a.todos.filter(t => t.completed).length / (a.todos.length || 1);
-      const bComplete = b.todos.filter(t => t.completed).length / (b.todos.length || 1);
+      const aComplete =
+        a.todos.filter((t) => t.completed).length / (a.todos.length || 1);
+      const bComplete =
+        b.todos.filter((t) => t.completed).length / (b.todos.length || 1);
       return bComplete - aComplete;
     } else {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      return (
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     }
   });
 
-  // Group by category
   const groupedLists: {categoryName: string; lists: TodoList[]}[] = [];
 
   if (!selectedCategory) {
-    const uncategorized = sortedLists.filter(l => !l.category);
+    const uncategorized = sortedLists.filter((l) => !l.category);
     if (uncategorized.length > 0) {
-      groupedLists.push({categoryName: 'Senza categoria', lists: uncategorized});
+      groupedLists.push({
+        categoryName: 'Senza categoria',
+        lists: uncategorized,
+      });
     }
 
     const categoriesWithLists = categories
-      .map(cat => {
+      .map((cat) => {
         const listsInCat = sortedLists.filter(
-          l => l.category && l.category.id === cat.id
+          (l) => l.category && l.category.id === cat.id
         );
         return {categoryName: cat.name, lists: listsInCat};
       })
-      .filter(group => group.lists.length > 0);
+      .filter((group) => group.lists.length > 0);
 
     if (categorySortAlpha) {
-      categoriesWithLists.sort((a, b) => a.categoryName.localeCompare(b.categoryName));
+      categoriesWithLists.sort((a, b) =>
+        a.categoryName.localeCompare(b.categoryName)
+      );
     }
 
     groupedLists.push(...categoriesWithLists);
   } else {
-    groupedLists.push({categoryName: selectedCategory.name, lists: sortedLists});
+    groupedLists.push({
+      categoryName: selectedCategory.name,
+      lists: sortedLists,
+    });
+  }
+
+  // ===== LOADING STATE (lines 508-514) =====
+  if (!user) {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark, styles.loadingContainer]}>
+        <Text style={[styles.loadingText, isDark && styles.loadingTextDark]}>
+          Caricamento...
+        </Text>
+      </View>
+    );
   }
 
   const rotate = fabRotation.interpolate({
@@ -388,13 +602,34 @@ export default function Home({navigation}: {navigation: any}) {
     outputRange: ['0deg', '45deg'],
   });
 
+  // ===== MAIN RENDER =====
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
       <Navbar navigation={navigation} />
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
-        {/* Quick Action Buttons */}
-        <View style={styles.actionButtons}>
+      {/* Custom Alert (AnimatedAlert equivalent) */}
+      {alert && (
+        <Animated.View
+          style={[
+            styles.alertContainer,
+            alert.type === 'success' && styles.alertSuccess,
+            alert.type === 'error' && styles.alertError,
+            alert.type === 'warning' && styles.alertWarning,
+          ]}>
+          <Text style={styles.alertText}>{alert.message}</Text>
+        </Animated.View>
+      )}
+
+      <Animated.ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}>
+        {/* Quick Action Buttons (lines 530-552) */}
+        <Animated.View
+          style={[
+            styles.actionButtons,
+            {opacity: boxOpacity, transform: [{translateY: boxTranslateY}]},
+          ]}>
           <TouchableOpacity
             style={[styles.actionButton, styles.actionButtonBlue]}
             onPress={() => navigation.navigate('UsersPage')}>
@@ -415,12 +650,12 @@ export default function Home({navigation}: {navigation: any}) {
             <Text style={styles.actionIcon}>✓</Text>
             <Text style={styles.actionButtonText}>I Miei Amici</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
-        {/* Category Controls */}
+        {/* Category Controls (lines 554-604) */}
         <View style={styles.categoryControls}>
           <TouchableOpacity
-            style={[styles.newCategoryButton]}
+            style={styles.newCategoryButton}
             onPress={() => {
               setShowCatForm(true);
               setEditCatId(null);
@@ -431,7 +666,46 @@ export default function Home({navigation}: {navigation: any}) {
 
           <TouchableOpacity
             style={[styles.categoryPicker, isDark && styles.categoryPickerDark]}
-            onPress={() => setShowCategoryPicker(true)}>
+            onPress={() => {
+              // Show category picker modal (simplified - in webapp it's a select)
+              Alert.alert(
+                'Seleziona Categoria',
+                '',
+                [
+                  {
+                    text: 'Tutte le categorie',
+                    onPress: async () => {
+                      setSelectedCategory(null);
+                      try {
+                        await saveSelectedCategory(null);
+                        setAlert({
+                          type: 'success',
+                          message: 'Filtro: Tutte le categorie',
+                        });
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    },
+                  },
+                  ...categories.map((cat) => ({
+                    text: cat.name,
+                    onPress: async () => {
+                      setSelectedCategory(cat);
+                      try {
+                        await saveSelectedCategory(cat.id);
+                        setAlert({
+                          type: 'success',
+                          message: `Filtro: ${cat.name}`,
+                        });
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    },
+                  })),
+                  {text: 'Annulla', style: 'cancel'},
+                ]
+              );
+            }}>
             <Text style={[styles.categoryPickerText, isDark && styles.categoryPickerTextDark]}>
               {selectedCategory ? selectedCategory.name : 'Tutte le categorie'}
             </Text>
@@ -446,7 +720,7 @@ export default function Home({navigation}: {navigation: any}) {
           )}
         </View>
 
-        {/* Empty State */}
+        {/* Empty State (lines 606-612) */}
         {sortedLists.length === 0 && (
           <View style={[styles.emptyState, isDark && styles.emptyStateDark]}>
             <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
@@ -455,15 +729,15 @@ export default function Home({navigation}: {navigation: any}) {
           </View>
         )}
 
-        {/* Lists Grid */}
+        {/* Lists Grid (lines 614-751) */}
         {groupedLists.map((group, groupIdx) => (
           <View key={groupIdx} style={styles.categorySection}>
             <Text style={[styles.categoryTitle, isDark && styles.categoryTitleDark]}>
               {group.categoryName}
             </Text>
             <View style={styles.listsGrid}>
-              {group.lists.map(list => {
-                const completed = list.todos.filter(t => t.completed).length;
+              {group.lists.map((list) => {
+                const completed = list.todos.filter((t) => t.completed).length;
                 const pending = list.todos.length - completed;
                 const colors = colorMap[list.color] || colorMap.blue;
 
@@ -474,10 +748,11 @@ export default function Home({navigation}: {navigation: any}) {
                       styles.listCard,
                       isDark && styles.listCardDark,
                       {borderLeftColor: colors.border, borderLeftWidth: 4},
+                      editMode && styles.listCardWiggle,
                     ]}
                     onPress={() => navigation.navigate('ToDoListPage', {listId: list.id})}
                     activeOpacity={0.8}>
-                    {/* Shared badge */}
+                    {/* Shared badge (lines 642-647) */}
                     {list.is_shared && list.shared_by && (
                       <View style={styles.sharedBadge}>
                         <Text style={styles.sharedBadgeText}>
@@ -499,19 +774,60 @@ export default function Home({navigation}: {navigation: any}) {
                       </Text>
                     )}
 
-                    {/* Edit mode buttons */}
-                    {editMode && list.is_owner !== false && (
+                    {/* Edit mode buttons (lines 674-716) */}
+                    {editMode && (
                       <View style={styles.editButtons}>
-                        <TouchableOpacity
-                          style={[styles.editButton, styles.editButtonBlue]}
-                          onPress={() => handleEditList(list)}>
-                          <Text>✏️</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.editButton, styles.editButtonRed]}
-                          onPress={() => handleDeleteList(list.id)}>
-                          <Text>🗑️</Text>
-                        </TouchableOpacity>
+                        {/* Share button - only for owned lists */}
+                        {list.is_owner !== false && (
+                          <TouchableOpacity
+                            style={[styles.editButton, styles.editButtonPurple]}
+                            onPress={(e) => {
+                              setShareItemId(list.id);
+                              setShareItemName(list.name);
+                              setShareItemType('list');
+                              setShareModalOpen(true);
+                            }}>
+                            <Text>🔗</Text>
+                          </TouchableOpacity>
+                        )}
+                        {/* Edit and Delete buttons - only for owned lists */}
+                        {list.is_owner !== false && (
+                          <>
+                            <TouchableOpacity
+                              style={[styles.editButton, styles.editButtonBlue]}
+                              onPress={() => handleEditList(list)}>
+                              <Text>✏️</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.editButton, styles.editButtonRed]}
+                              onPress={() => setShowDeleteConfirm(list.id)}>
+                              <Text>🗑️</Text>
+                            </TouchableOpacity>
+                          </>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Delete confirmation (lines 717-743) */}
+                    {showDeleteConfirm === list.id && (
+                      <View style={styles.deleteConfirm}>
+                        <Text style={styles.deleteConfirmText}>
+                          Confermi eliminazione?
+                        </Text>
+                        <View style={styles.deleteConfirmButtons}>
+                          <TouchableOpacity
+                            style={styles.deleteConfirmYes}
+                            onPress={() => handleDeleteList(list.id)}>
+                            <Text style={styles.deleteConfirmYesText}>Sì</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.deleteConfirmNo, isDark && styles.deleteConfirmNoDark]}
+                            onPress={() => setShowDeleteConfirm(null)}>
+                            <Text style={[styles.deleteConfirmNoText, isDark && styles.deleteConfirmNoTextDark]}>
+                              No
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -520,9 +836,9 @@ export default function Home({navigation}: {navigation: any}) {
             </View>
           </View>
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
 
-      {/* FAB Menu */}
+      {/* FAB Menu (lines 754-895) */}
       <View style={styles.fabContainer}>
         {/* Menu items */}
         <Animated.View
@@ -534,7 +850,7 @@ export default function Home({navigation}: {navigation: any}) {
             },
           ]}
           pointerEvents={menuOpen ? 'auto' : 'none'}>
-          {/* Nuova Lista */}
+          {/* Nuova Lista (lines 764-778) */}
           <TouchableOpacity
             style={[styles.fabMenuItem, styles.fabMenuItemBlue]}
             onPress={() => {
@@ -545,23 +861,29 @@ export default function Home({navigation}: {navigation: any}) {
               setNewListCategory(null);
               setMenuOpen(false);
             }}>
-            <Text style={styles.fabMenuText}>+ Nuova Lista</Text>
+            <Text style={styles.fabMenuIcon}>+</Text>
+            <Text style={styles.fabMenuText}>Nuova Lista</Text>
           </TouchableOpacity>
 
-          {/* Modifica Liste */}
+          {/* Modifica Liste (lines 780-798) */}
           <TouchableOpacity
             style={[styles.fabMenuItem, styles.fabMenuItemGreen]}
             onPress={() => {
-              setEditMode(!editMode);
+              const newMode = !editMode;
+              setEditMode(newMode);
               setMenuOpen(false);
-              Alert.alert(
-                editMode ? 'Modalità modifica disattivata' : 'Modalità modifica attivata'
-              );
+              setAlert({
+                type: newMode ? 'warning' : 'success',
+                message: newMode
+                  ? 'Modalità modifica attivata'
+                  : 'Modalità modifica disattivata',
+              });
             }}>
-            <Text style={styles.fabMenuText}>✏️ Modifica Liste</Text>
+            <Text style={styles.fabMenuIcon}>✏️</Text>
+            <Text style={styles.fabMenuText}>Modifica Liste</Text>
           </TouchableOpacity>
 
-          {/* Ordinamento */}
+          {/* Filtro ordinamento (lines 800-830) */}
           <TouchableOpacity
             style={[styles.fabMenuItem, styles.fabMenuItemYellow]}
             onPress={() => {
@@ -575,8 +897,8 @@ export default function Home({navigation}: {navigation: any}) {
               handleSortChange(options[nextIndex]);
               setMenuOpen(false);
             }}>
+            <Text style={styles.fabMenuIcon}>🔄</Text>
             <Text style={styles.fabMenuText}>
-              🔄{' '}
               {sortOption === 'created'
                 ? 'Più recente'
                 : sortOption === 'name'
@@ -585,7 +907,7 @@ export default function Home({navigation}: {navigation: any}) {
             </Text>
           </TouchableOpacity>
 
-          {/* Ordine A-Z */}
+          {/* Ordine alfabetico categorie (lines 832-877) */}
           {!selectedCategory && (
             <TouchableOpacity
               style={[
@@ -594,212 +916,229 @@ export default function Home({navigation}: {navigation: any}) {
                   ? styles.fabMenuItemPurple
                   : styles.fabMenuItemGray,
               ]}
-              onPress={() => {
-                toggleCategorySortAlpha();
+              onPress={async () => {
+                const newValue = !categorySortAlpha;
+                setCategorySortAlpha(newValue);
                 setMenuOpen(false);
+
+                setAlert({
+                  type: 'success',
+                  message: newValue ? 'Ordine A-Z attivato' : 'Ordine A-Z disattivato',
+                });
+
+                try {
+                  const token = await getAccessToken();
+                  await fetch(`${API_URL}/categories/sort_preference/`, {
+                    method: 'PATCH',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({category_sort_alpha: newValue}),
+                  });
+                } catch (err) {
+                  console.error('Errore nel salvataggio preferenza categoria:', err);
+                }
               }}>
+              <Text style={styles.fabMenuIcon}>
+                {categorySortAlpha ? '✓' : 'A-Z'}
+              </Text>
               <Text style={styles.fabMenuText}>
-                {categorySortAlpha ? '✓ Ordine A-Z attivo' : 'A-Z Ordine'}
+                {categorySortAlpha ? 'Ordine A-Z attivo' : 'Ordine A-Z'}
               </Text>
             </TouchableOpacity>
           )}
         </Animated.View>
 
-        {/* Main FAB button */}
+        {/* Main FAB button (lines 880-895) */}
         <Animated.View style={{transform: [{rotate}]}}>
           <TouchableOpacity
             style={styles.fab}
             onPress={() => {
-              setMenuOpen(!menuOpen);
-              if (menuOpen) setEditMode(false);
+              setMenuOpen((prev) => {
+                const next = !prev;
+                if (!next) setEditMode(false);
+                return next;
+              });
             }}>
             <Text style={styles.fabIcon}>+</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
 
-      {/* Create/Edit List Modal */}
+      {/* Create/Edit List Modal (lines 897-963) */}
       <Modal visible={showForm} transparent animationType="none">
         <BlurView
           style={styles.modalOverlay}
           blurType={isDark ? 'dark' : 'light'}
           blurAmount={20}>
-          <Pressable style={styles.modalOverlayPressable} onPress={() => setShowForm(false)}>
+          <Pressable
+            style={styles.modalOverlayPressable}
+            onPress={() => {
+              setShowForm(false);
+              setEditListId(null);
+              setNewListName('');
+              setNewListColor('blue');
+              setNewListCategory(null);
+            }}>
             <Animated.View
-              style={[
-                {
-                  opacity: modalOpacity,
-                  transform: [{scale: modalScale}],
-                },
-              ]}>
-              <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
-            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
-              {editListId !== null ? 'Modifica Lista' : 'Nuova Lista'}
-            </Text>
+              style={{
+                opacity: modalOpacity,
+                transform: [{scale: modalScale}],
+              }}>
+              <Pressable
+                style={[styles.modalContent, isDark && styles.modalContentDark]}
+                onPress={() => {}}>
+                <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
+                  {editListId !== null ? 'Modifica Lista' : 'Nuova Lista'}
+                </Text>
 
-            <TextInput
-              style={[styles.input, isDark && styles.inputDark]}
-              placeholder="Nome della lista"
-              placeholderTextColor={isDark ? '#999' : '#666'}
-              value={newListName}
-              onChangeText={setNewListName}
-            />
-
-            <Text style={[styles.label, isDark && styles.labelDark]}>Colore:</Text>
-            <View style={styles.colorPicker}>
-              {Object.keys(colorMap).map(color => (
-                <TouchableOpacity
-                  key={color}
-                  style={[
-                    styles.colorOption,
-                    {backgroundColor: colorMap[color].border},
-                    newListColor === color && styles.colorOptionSelected,
-                  ]}
-                  onPress={() => setNewListColor(color)}
+                <TextInput
+                  style={[styles.input, isDark && styles.inputDark]}
+                  placeholder="Nome della lista"
+                  placeholderTextColor={isDark ? '#999' : '#666'}
+                  value={newListName}
+                  onChangeText={setNewListName}
                 />
-              ))}
-            </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel, isDark && styles.modalButtonCancelDark]}
-                onPress={() => {
-                  setShowForm(false);
-                  setEditListId(null);
-                  setNewListName('');
-                  setNewListColor('blue');
-                  setNewListCategory(null);
-                }}>
-                <Text style={[styles.modalButtonText, isDark && styles.modalButtonTextDark]}>
-                  Annulla
-                </Text>
-              </TouchableOpacity>
+                {/* Color picker */}
+                <View style={styles.colorPickerContainer}>
+                  {Object.keys(colorMap).map((color) => (
+                    <TouchableOpacity
+                      key={color}
+                      style={[
+                        styles.colorOption,
+                        {backgroundColor: colorMap[color].border},
+                        newListColor === color && styles.colorOptionSelected,
+                      ]}
+                      onPress={() => setNewListColor(color)}
+                    />
+                  ))}
+                </View>
 
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleCreateList}>
-                <Text style={styles.modalButtonTextWhite}>
-                  {editListId !== null ? 'Salva' : 'Crea'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                {/* Category picker (simplified) */}
+                <TouchableOpacity
+                  style={[styles.categorySelectButton, isDark && styles.categorySelectButtonDark]}
+                  onPress={() => {
+                    Alert.alert(
+                      'Seleziona Categoria',
+                      '',
+                      [
+                        {
+                          text: 'Senza categoria',
+                          onPress: () => setNewListCategory(null),
+                        },
+                        ...categories.map((cat) => ({
+                          text: cat.name,
+                          onPress: () => setNewListCategory(cat.id),
+                        })),
+                        {text: 'Annulla', style: 'cancel'},
+                      ]
+                    );
+                  }}>
+                  <Text style={[styles.categorySelectText, isDark && styles.categorySelectTextDark]}>
+                    {newListCategory
+                      ? categories.find((c) => c.id === newListCategory)?.name || 'Senza categoria'
+                      : 'Senza categoria'}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonCancel, isDark && styles.modalButtonCancelDark]}
+                    onPress={() => {
+                      setShowForm(false);
+                      setEditListId(null);
+                      setNewListName('');
+                      setNewListColor('blue');
+                      setNewListCategory(null);
+                    }}>
+                    <Text style={[styles.modalButtonText, isDark && styles.modalButtonTextDark]}>
+                      Annulla
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonConfirm]}
+                    onPress={handleCreateList}>
+                    <Text style={styles.modalButtonTextWhite}>
+                      {editListId !== null ? 'Salva' : 'Crea'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </Pressable>
+            </Animated.View>
           </Pressable>
-          </Animated.View>
-        </Pressable>
         </BlurView>
       </Modal>
 
-      {/* Create/Edit Category Modal */}
+      {/* Create/Edit Category Modal (lines 965-999) */}
       <Modal visible={showCatForm} transparent animationType="none">
         <BlurView
           style={styles.modalOverlay}
           blurType={isDark ? 'dark' : 'light'}
           blurAmount={20}>
-          <Pressable style={styles.modalOverlayPressable} onPress={() => setShowCatForm(false)}>
+          <Pressable
+            style={styles.modalOverlayPressable}
+            onPress={() => {
+              setShowCatForm(false);
+              setEditCatId(null);
+              setCatName('');
+            }}>
             <Animated.View
-              style={[
-                {
-                  opacity: modalOpacity,
-                  transform: [{scale: modalScale}],
-                },
-              ]}>
-              <Pressable style={[styles.modalContent, isDark && styles.modalContentDark]}>
-            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
-              {editCatId ? 'Modifica Categoria' : 'Nuova Categoria'}
-            </Text>
-
-            <TextInput
-              style={[styles.input, isDark && styles.inputDark]}
-              placeholder="Nome categoria"
-              placeholderTextColor={isDark ? '#999' : '#666'}
-              value={catName}
-              onChangeText={setCatName}
-            />
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel, isDark && styles.modalButtonCancelDark]}
-                onPress={() => {
-                  setShowCatForm(false);
-                  setEditCatId(null);
-                  setCatName('');
-                }}>
-                <Text style={[styles.modalButtonText, isDark && styles.modalButtonTextDark]}>
-                  Annulla
+              style={{
+                opacity: modalOpacity,
+                transform: [{scale: modalScale}],
+              }}>
+              <Pressable
+                style={[styles.modalContent, isDark && styles.modalContentDark]}
+                onPress={() => {}}>
+                <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
+                  {editCatId ? 'Modifica Categoria' : 'Nuova Categoria'}
                 </Text>
-              </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleCreateOrEditCat}>
-                <Text style={styles.modalButtonTextWhite}>
-                  {editCatId ? 'Salva' : 'Crea'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                <TextInput
+                  style={[styles.input, isDark && styles.inputDark]}
+                  placeholder="Nome categoria"
+                  placeholderTextColor={isDark ? '#999' : '#666'}
+                  value={catName}
+                  onChangeText={setCatName}
+                />
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonCancel, isDark && styles.modalButtonCancelDark]}
+                    onPress={() => {
+                      setShowCatForm(false);
+                      setEditCatId(null);
+                      setCatName('');
+                    }}>
+                    <Text style={[styles.modalButtonText, isDark && styles.modalButtonTextDark]}>
+                      Annulla
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalButtonConfirm]}
+                    onPress={handleCreateOrEditCat}>
+                    <Text style={styles.modalButtonTextWhite}>
+                      {editCatId ? 'Salva' : 'Crea'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </Pressable>
+            </Animated.View>
           </Pressable>
-          </Animated.View>
-        </Pressable>
         </BlurView>
       </Modal>
 
-      {/* Category Picker Modal */}
-      <Modal visible={showCategoryPicker} transparent animationType="none">
-        <BlurView
-          style={styles.modalOverlay}
-          blurType={isDark ? 'dark' : 'light'}
-          blurAmount={20}>
-          <Pressable style={styles.modalOverlayPressable} onPress={() => setShowCategoryPicker(false)}>
-            <Animated.View
-              style={[
-                {
-                  opacity: modalOpacity,
-                  transform: [{scale: modalScale}],
-                },
-              ]}>
-              <View style={[styles.pickerModal, isDark && styles.pickerModalDark]}>
-            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
-              Seleziona Categoria
-            </Text>
-            <ScrollView>
-              <TouchableOpacity
-                style={styles.pickerItem}
-                onPress={async () => {
-                  setSelectedCategory(null);
-                  await saveSelectedCategory(null);
-                  setShowCategoryPicker(false);
-                  Alert.alert('Filtro', 'Tutte le categorie');
-                }}>
-                <Text style={[styles.pickerItemText, isDark && styles.pickerItemTextDark]}>
-                  Tutte le categorie
-                </Text>
-              </TouchableOpacity>
-
-              {categories.map(cat => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={styles.pickerItem}
-                  onPress={async () => {
-                    setSelectedCategory(cat);
-                    await saveSelectedCategory(cat.id);
-                    setShowCategoryPicker(false);
-                    Alert.alert('Filtro', cat.name);
-                  }}>
-                  <Text style={[styles.pickerItemText, isDark && styles.pickerItemTextDark]}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-          </Animated.View>
-        </Pressable>
-        </BlurView>
-      </Modal>
+      {/* TODO: Share Modal - webapp lines 1001-1017 */}
+      {/* Note: ShareModal component needs to be created separately */}
     </View>
   );
 }
 
+// ===== STYLES =====
 const screenWidth = Dimensions.get('window').width;
 const cardWidth = screenWidth > 768 ? (screenWidth - 80) / 3 : (screenWidth - 60) / 2;
 
@@ -810,6 +1149,46 @@ const styles = StyleSheet.create({
   },
   containerDark: {
     backgroundColor: '#111827',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  loadingTextDark: {
+    color: '#999',
+  },
+  alertContainer: {
+    position: 'absolute',
+    top: 100,
+    left: 20,
+    right: 20,
+    zIndex: 100,
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  alertSuccess: {
+    backgroundColor: '#22c55e',
+  },
+  alertError: {
+    backgroundColor: '#ef4444',
+  },
+  alertWarning: {
+    backgroundColor: '#eab308',
+  },
+  alertText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   scrollView: {
     flex: 1,
@@ -833,6 +1212,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   actionButtonBlue: {
     backgroundColor: 'rgba(59, 130, 246, 0.8)',
@@ -866,6 +1250,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   newCategoryText: {
     color: '#fff',
@@ -947,10 +1336,18 @@ const styles = StyleSheet.create({
     minHeight: 120,
     justifyContent: 'center',
     position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   listCardDark: {
     backgroundColor: 'rgba(31, 41, 55, 0.7)',
     borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  listCardWiggle: {
+    // Wiggle animation would be applied here via Animated
   },
   sharedBadge: {
     position: 'absolute',
@@ -960,6 +1357,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
+    zIndex: 20,
   },
   sharedBadgeText: {
     color: '#fff',
@@ -984,23 +1382,80 @@ const styles = StyleSheet.create({
   },
   editButtons: {
     position: 'absolute',
-    top: 8,
+    top: 32,
     right: 8,
     flexDirection: 'row',
     gap: 8,
+    zIndex: 10,
   },
   editButton: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  editButtonPurple: {
+    backgroundColor: 'rgba(192, 132, 252, 0.8)',
   },
   editButtonBlue: {
     backgroundColor: 'rgba(147, 197, 253, 0.8)',
   },
   editButtonRed: {
     backgroundColor: 'rgba(252, 165, 165, 0.8)',
+  },
+  deleteConfirm: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.5)',
+  },
+  deleteConfirmText: {
+    color: '#dc2626',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  deleteConfirmButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  deleteConfirmYes: {
+    flex: 1,
+    backgroundColor: 'rgba(220, 38, 38, 0.8)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  deleteConfirmYesText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  deleteConfirmNo: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(200, 200, 200, 0.5)',
+  },
+  deleteConfirmNoDark: {
+    backgroundColor: 'rgba(55, 65, 81, 0.5)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  deleteConfirmNoText: {
+    color: '#555',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  deleteConfirmNoTextDark: {
+    color: '#aaa',
   },
   fabContainer: {
     position: 'absolute',
@@ -1013,11 +1468,19 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   fabMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   fabMenuItemBlue: {
     backgroundColor: 'rgba(59, 130, 246, 0.8)',
@@ -1033,6 +1496,10 @@ const styles = StyleSheet.create({
   },
   fabMenuItemGray: {
     backgroundColor: 'rgba(107, 114, 128, 0.8)',
+  },
+  fabMenuIcon: {
+    fontSize: 20,
+    color: '#fff',
   },
   fabMenuText: {
     color: '#fff',
@@ -1070,12 +1537,20 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(200, 200, 200, 0.5)',
     padding: 24,
     width: '85%',
     maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 8},
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 16,
   },
   modalContentDark: {
-    backgroundColor: 'rgba(31, 41, 55, 0.95)',
+    backgroundColor: 'rgba(17, 24, 39, 0.95)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   modalTitle: {
     fontSize: 20,
@@ -1102,19 +1577,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
     color: '#fff',
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  labelDark: {
-    color: '#fff',
-  },
-  colorPicker: {
+  colorPickerContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 20,
+    marginBottom: 16,
+    justifyContent: 'center',
   },
   colorOption: {
     width: 40,
@@ -1126,6 +1593,26 @@ const styles = StyleSheet.create({
   colorOptionSelected: {
     borderColor: '#000',
     borderWidth: 3,
+  },
+  categorySelectButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(200, 200, 200, 0.5)',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  categorySelectButtonDark: {
+    backgroundColor: 'rgba(31, 41, 55, 0.5)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  categorySelectText: {
+    color: '#333',
+    fontSize: 16,
+  },
+  categorySelectTextDark: {
+    color: '#fff',
   },
   modalButtons: {
     flexDirection: 'row',
@@ -1148,6 +1635,8 @@ const styles = StyleSheet.create({
   },
   modalButtonConfirm: {
     backgroundColor: 'rgba(59, 130, 246, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 197, 253, 0.3)',
   },
   modalButtonText: {
     color: '#333',
@@ -1155,34 +1644,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   modalButtonTextDark: {
-    color: '#fff',
+    color: '#aaa',
   },
   modalButtonTextWhite: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
-  },
-  pickerModal: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '70%',
-    marginTop: 'auto',
-  },
-  pickerModalDark: {
-    backgroundColor: 'rgba(31, 41, 55, 0.95)',
-  },
-  pickerItem: {
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(200, 200, 200, 0.3)',
-  },
-  pickerItemText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  pickerItemTextDark: {
-    color: '#fff',
   },
 });

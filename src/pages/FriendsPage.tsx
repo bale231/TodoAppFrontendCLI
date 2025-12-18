@@ -49,7 +49,7 @@ export default function FriendsPage({navigation}: FriendsPageProps) {
             loadFriends();
             Alert.alert('Successo', 'Amico rimosso');
           } catch (error) {
-            Alert.alert('Errore', 'Impossibile rimuovere l'amico');
+            Alert.alert('Errore', 'Impossibile rimuovere l\'amico');
           }
         },
       },

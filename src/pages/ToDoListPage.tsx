@@ -895,7 +895,7 @@ export default function ToDoListPage({route, navigation}: {route: any; navigatio
           </BlurView>
         </Modal>
       </View>
-    </GestureHandlerRootView>
+    </View>
   );
 }
 

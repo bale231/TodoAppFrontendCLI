@@ -14,13 +14,9 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  FlatList,
 } from 'react-native';
 import {BlurView} from '@react-native-community/blur';
-import DraggableFlatList, {
-  ScaleDecorator,
-  RenderItemParams,
-} from 'react-native-draggable-flatlist';
-import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {useTheme} from '../context/ThemeContext';
 import {
   createTodo,
@@ -376,16 +372,8 @@ export default function ToDoListPage({route, navigation}: {route: any; navigatio
     }
   };
 
-  const handleDragEnd = async ({data}: {data: Todo[]}) => {
-    if (sortOption === 'alphabetical') return;
-    setTodos(data);
-    const newOrder = data.map((t) => t.id);
-    try {
-      await reorderTodos(listId, newOrder);
-    } catch (err) {
-      setAlert({type: 'error', message: 'Errore riordinamento'});
-    }
-  };
+  // Drag & drop temporarily disabled due to React Native 0.83.0 compatibility issues
+  // Will be re-enabled when react-native-reanimated supports RN 0.83.0
 
   const handleSortChange = async (newSort: 'created' | 'alphabetical' | 'completed') => {
     if (!listId) return;
@@ -436,106 +424,99 @@ export default function ToDoListPage({route, navigation}: {route: any; navigatio
   const backgroundColor = isDark ? colorThemes[listColor].dark : colorThemes[listColor].light;
 
   // ===== RENDER TODO ITEM =====
-  const renderTodoItem = ({item, drag, isActive}: RenderItemParams<Todo>) => (
-    <ScaleDecorator>
-      <Animated.View
-        style={[
-          {
-            opacity: listOpacity,
-            transform: [{translateX: listTranslateX}],
-          },
-        ]}>
-        <View style={[styles.todoItem, isDark && styles.todoItemDark, isActive && styles.todoItemDragging]}>
-          <View style={styles.todoContent}>
-            {editMode && (
-              <TouchableOpacity
-                style={styles.checkbox}
-                onPress={() => {
-                  if (selectedIds.includes(item.id)) {
-                    setSelectedIds(selectedIds.filter((i) => i !== item.id));
-                  } else {
-                    setSelectedIds([...selectedIds, item.id]);
-                  }
-                }}>
-                <View
-                  style={[
-                    styles.checkboxBox,
-                    selectedIds.includes(item.id) && styles.checkboxBoxChecked,
-                  ]}>
-                  {selectedIds.includes(item.id) && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-              </TouchableOpacity>
-            )}
-
+  const renderTodoItem = ({item}: {item: Todo}) => (
+    <Animated.View
+      style={[
+        {
+          opacity: listOpacity,
+          transform: [{translateX: listTranslateX}],
+        },
+      ]}>
+      <View style={[styles.todoItem, isDark && styles.todoItemDark]}>
+        <View style={styles.todoContent}>
+          {editMode && (
             <TouchableOpacity
-              style={styles.toggleButton}
-              onPress={() => handleToggle(item.id)}>
-              <Text style={styles.toggleIcon}>{item.completed ? '☑' : '☐'}</Text>
-            </TouchableOpacity>
-
-            <View style={styles.todoTextContainer}>
-              <Text
+              style={styles.checkbox}
+              onPress={() => {
+                if (selectedIds.includes(item.id)) {
+                  setSelectedIds(selectedIds.filter((i) => i !== item.id));
+                } else {
+                  setSelectedIds([...selectedIds, item.id]);
+                }
+              }}>
+              <View
                 style={[
-                  styles.todoTitle,
-                  isDark && styles.todoTitleDark,
-                  item.completed && styles.todoTitleCompleted,
+                  styles.checkboxBox,
+                  selectedIds.includes(item.id) && styles.checkboxBoxChecked,
                 ]}>
-                {item.title}
-              </Text>
-              {item.quantity && item.unit && (
-                <View style={styles.quantityBadge}>
-                  <Text style={styles.quantityText}>
-                    {item.quantity} {item.unit}
-                  </Text>
-                </View>
-              )}
-              {(isShared || !isOwner) && currentUserId && (
-                <>
-                  {item.modified_by && item.modified_by.id !== item.created_by?.id && item.modified_by.id !== currentUserId ? (
-                    <Text style={styles.authorText}>Modificata da {item.modified_by.full_name}</Text>
-                  ) : item.created_by && item.created_by.id !== currentUserId ? (
-                    <Text style={styles.authorText}>Aggiunta da {item.created_by.full_name}</Text>
-                  ) : null}
-                </>
-              )}
-            </View>
-
-            <TouchableOpacity onPressIn={drag} style={styles.dragHandle} disabled={isActive}>
-              <Text style={styles.dragIcon}>☰</Text>
+                {selectedIds.includes(item.id) && <Text style={styles.checkmark}>✓</Text>}
+              </View>
             </TouchableOpacity>
+          )}
 
-            {editMode && (
-              <View style={styles.editButtons}>
-                <TouchableOpacity
-                  style={[styles.editButton, styles.editButtonPurple]}
-                  onPress={() => {
-                    setTodoToMove(item);
-                    setShowMoveModal(true);
-                  }}>
-                  <Text>⇄</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.editButton, styles.editButtonBlue]}
-                  onPress={() => handleOpenEdit(item)}>
-                  <Text>✏️</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.editButton, styles.editButtonRed]}
-                  onPress={() => handleDelete(item.id)}>
-                  <Text>🗑️</Text>
-                </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.toggleButton}
+            onPress={() => handleToggle(item.id)}>
+            <Text style={styles.toggleIcon}>{item.completed ? '☑' : '☐'}</Text>
+          </TouchableOpacity>
+
+          <View style={styles.todoTextContainer}>
+            <Text
+              style={[
+                styles.todoTitle,
+                isDark && styles.todoTitleDark,
+                item.completed && styles.todoTitleCompleted,
+              ]}>
+              {item.title}
+            </Text>
+            {item.quantity && item.unit && (
+              <View style={styles.quantityBadge}>
+                <Text style={styles.quantityText}>
+                  {item.quantity} {item.unit}
+                </Text>
               </View>
             )}
+            {(isShared || !isOwner) && currentUserId && (
+              <>
+                {item.modified_by && item.modified_by.id !== item.created_by?.id && item.modified_by.id !== currentUserId ? (
+                  <Text style={styles.authorText}>Modificata da {item.modified_by.full_name}</Text>
+                ) : item.created_by && item.created_by.id !== currentUserId ? (
+                  <Text style={styles.authorText}>Aggiunta da {item.created_by.full_name}</Text>
+                ) : null}
+              </>
+            )}
           </View>
+
+          {editMode && (
+            <View style={styles.editButtons}>
+              <TouchableOpacity
+                style={[styles.editButton, styles.editButtonPurple]}
+                onPress={() => {
+                  setTodoToMove(item);
+                  setShowMoveModal(true);
+                }}>
+                <Text>⇄</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editButton, styles.editButtonBlue]}
+                onPress={() => handleOpenEdit(item)}>
+                <Text>✏️</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.editButton, styles.editButtonRed]}
+                onPress={() => handleDelete(item.id)}>
+                <Text>🗑️</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-      </Animated.View>
-    </ScaleDecorator>
+      </View>
+    </Animated.View>
   );
 
   // ===== MAIN RENDER =====
   return (
-    <GestureHandlerRootView style={{flex: 1}}>
-      <View style={[styles.container, isDark && styles.containerDark, {backgroundColor}]}>
+    <View style={[styles.container, isDark && styles.containerDark, {backgroundColor}]}>
         {/* Custom Alert */}
         {alert && (
           <View
@@ -627,12 +608,10 @@ export default function ToDoListPage({route, navigation}: {route: any; navigatio
         </View>
 
         {/* Todos List */}
-        <DraggableFlatList
+        <FlatList
           data={displayedTodos}
           renderItem={renderTodoItem}
           keyExtractor={(item) => item.id.toString()}
-          onDragEnd={handleDragEnd}
-          activationDistance={sortOption === 'alphabetical' ? 999999 : 8}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyState}>

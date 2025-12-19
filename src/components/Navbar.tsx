@@ -12,6 +12,7 @@ import {BlurView} from '@react-native-community/blur';
 import {useTheme} from '../context/ThemeContext';
 import {getCurrentUserJWT, logout} from '../api/auth';
 import {useNotifications} from '../context/NotificationContext';
+import NotificationBadge from './NotificationBadge';
 
 interface NavbarProps {
   navigation: any;
@@ -19,9 +20,7 @@ interface NavbarProps {
 
 export default function Navbar({navigation}: NavbarProps) {
   const {theme, setTheme} = useTheme();
-  const {notifications} = useNotifications();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [notificationModalOpen, setNotificationModalOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const isDark = theme === 'dark';
 
@@ -44,8 +43,6 @@ export default function Navbar({navigation}: NavbarProps) {
     setDropdownOpen(false);
     navigation.navigate('Login');
   };
-
-  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
     <>
@@ -75,17 +72,8 @@ export default function Navbar({navigation}: NavbarProps) {
           <Text style={styles.icon}>{isDark ? '☀️' : '🌙'}</Text>
         </TouchableOpacity>
 
-        {/* Notification bell */}
-        <TouchableOpacity
-          onPress={() => setNotificationModalOpen(true)}
-          style={styles.iconButton}>
-          <Text style={styles.icon}>🔔</Text>
-          {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {/* Notification badge */}
+        <NotificationBadge />
 
         {/* Profile dropdown */}
         <TouchableOpacity
@@ -138,41 +126,6 @@ export default function Navbar({navigation}: NavbarProps) {
           </View>
         </Pressable>
       </Modal>
-
-      {/* Notification Modal */}
-      <Modal
-        visible={notificationModalOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setNotificationModalOpen(false)}>
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setNotificationModalOpen(false)}>
-          <View style={[styles.notificationModal, isDark && styles.notificationModalDark]}>
-            <Text style={[styles.modalTitle, isDark && styles.modalTitleDark]}>
-              Notifiche
-            </Text>
-            {notifications.length === 0 ? (
-              <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
-                Nessuna notifica
-              </Text>
-            ) : (
-              notifications.map(notif => (
-                <View key={notif.id} style={styles.notificationItem}>
-                  <Text style={[styles.notificationText, isDark && styles.notificationTextDark]}>
-                    {notif.message}
-                  </Text>
-                </View>
-              ))
-            )}
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setNotificationModalOpen(false)}>
-              <Text style={styles.closeButtonText}>Chiudi</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
     </>
   );
 }
@@ -201,28 +154,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   iconButton: {
-    position: 'relative',
     padding: 8,
   },
   icon: {
     fontSize: 20,
-  },
-  badge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: '#f44',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   profileButton: {
     marginLeft: 4,
@@ -280,59 +215,5 @@ const styles = StyleSheet.create({
   },
   dropdownTextDark: {
     color: '#fff',
-  },
-  notificationModal: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 12,
-    padding: 20,
-    marginTop: 100,
-    marginHorizontal: 16,
-    maxHeight: '70%',
-    minWidth: 300,
-  },
-  notificationModalDark: {
-    backgroundColor: 'rgba(31, 41, 55, 0.95)',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-  },
-  modalTitleDark: {
-    color: '#fff',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#999',
-    fontSize: 16,
-    paddingVertical: 20,
-  },
-  emptyTextDark: {
-    color: '#666',
-  },
-  notificationItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(200, 200, 200, 0.3)',
-  },
-  notificationText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  notificationTextDark: {
-    color: '#ddd',
-  },
-  closeButton: {
-    marginTop: 16,
-    backgroundColor: '#4a90e2',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });
